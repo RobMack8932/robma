@@ -12,7 +12,7 @@ namespace Tomagotchi.Controllers
     // All of these routes will be at the base URL:     /api/Pets
     // That is what "api/[controller]" means below. It uses the name of the controller
     // in this case PetsController to determine the URL
-    [Route("api/[controller]")]
+
     [ApiController]
     public class PetsController : ControllerBase
     {
@@ -31,11 +31,10 @@ namespace Tomagotchi.Controllers
         // Returns a list of all your Pets
         //
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Pet>>> GetPets()
+        public ActionResult<IEnumerable<Pet>> GetAll()
         {
-            // Uses the database context in `_context` to request all of the Pets and
-            // return them as a JSON array.
-            return await _context.Pets.ToListAsync();
+
+            return Ok(_context.Pets);
         }
 
         // GET: api/Pets/5
@@ -45,20 +44,14 @@ namespace Tomagotchi.Controllers
         // to grab the id from the URL. It is then made available to us as the `id` argument to the method.
         //
         [HttpGet("{id}")]
-        public async Task<ActionResult<Pet>> GetPet(int id)
+        public ActionResult<Pet> GetByID(int id)
         {
-            // Find the pet in the database using `FindAsync` to look it up by id
-            var pet = await _context.Pets.FindAsync(id);
-
-            // If we didn't find anything, we receive a `null` in return
+            var pet = _context.Pets.FirstOrDefault(pet => pet.Id == id);
             if (pet == null)
             {
-                // Return a `404` response to the client indicating we could not find a pet with this id
                 return NotFound();
             }
-
-            //  Return the pet as a JSON object.
-            return pet;
+            return Ok(pet);
         }
 
         // PUT: api/Pets/5
@@ -72,49 +65,6 @@ namespace Tomagotchi.Controllers
         // supplies to the names of the attributes of our Pet POCO class. This represents the
         // new values for the record.
         //
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutPet(int id, Pet pet)
-        {
-            // If the ID in the URL does not match the ID in the supplied request body, return a bad request
-            if (id != pet.Id)
-            {
-                return BadRequest();
-            }
-
-            // Tell the database to consider everything in pet to be _updated_ values. When
-            // the save happens the database will _replace_ the values in the database with the ones from pet
-            _context.Entry(pet).State = EntityState.Modified;
-
-            try
-            {
-                // Try to save these changes.
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                // Ooops, looks like there was an error, so check to see if the record we were
-                // updating no longer exists.
-                if (!PetExists(id))
-                {
-                    // If the record we tried to update was already deleted by someone else,
-                    // return a `404` not found
-                    return NotFound();
-                }
-                else
-                {
-                    // Otherwise throw the error back, which will cause the request to fail
-                    // and generate an error to the client.
-                    throw;
-                }
-            }
-
-            // return NoContent to indicate the update was done. Alternatively you can use the
-            // following to send back a copy of the updated data.
-            //
-            // return Ok(pet)
-            //
-            return NoContent();
-        }
 
         // POST: api/Pets
         //
@@ -126,15 +76,59 @@ namespace Tomagotchi.Controllers
         // new values for the record.
         //
         [HttpPost]
-        public async Task<ActionResult<Pet>> PostPet(Pet pet)
+        public ActionResult<Pet> Create(Pet petToCreate)
         {
-            // Indicate to the database context we want to add this new record
-            _context.Pets.Add(pet);
-            await _context.SaveChangesAsync();
+            petToCreate.Birthday = DateTime.Now;
+            petToCreate.HungerLevel = 0;
+            petToCreate.HappinessLevel = 0;
+            Console.WriteLine($"Name: {petToCreate.Name}");
+            _context.Pets.Add(petToCreate);
+            _context.SaveChanges();
+            return CreatedAtAction(null, null, petToCreate);
+        }
+        [HttpPut("{id}")]
+        public ActionResult<Pet> AddHappinessAndHungerLevel(int id, Pet add)
+        {
+            var foundPet = _context.Pets.FirstOrDefault(pet => pet.Id == id);
+            if (foundPet == null)
+            {
+                return NotFound();
+            }
+            foundPet.HungerLevel = add.HungerLevel + 3;
+            foundPet.HappinessLevel = add.HappinessLevel + 5;
 
-            // Return a response that indicates the object was created (status code `201`) and some additional
-            // headers with details of the newly created object.
-            return CreatedAtAction("GetPet", new { id = pet.Id }, pet);
+            _context.Entry(foundPet).State = EntityState.Modified;
+            _context.SaveChanges();
+            return Ok(foundPet);
+
+
+
+        }
+
+        [HttpPut("{id}")]
+        public ActionResult<Pet> SubtractHappinessAndHunger(int id, Pet subtract)
+        {
+            var foundPet = _context.Pets.FirstOrDefault(pet => pet.Id == id);
+            if (foundPet == null)
+            {
+                return NotFound();
+            }
+            foundPet.HungerLevel = subtract.HungerLevel - 5;
+            foundPet.HappinessLevel = subtract.HappinessLevel - 3;
+
+            return Ok(foundPet);
+        }
+        public ActionResult<Pet> SubtractHappiness(int id, Pet subtractHappiness)
+        {
+            var foundPet = _context.Pets.FirstOrDefault(pet => pet.Id == id);
+            if (foundPet == null)
+            {
+                return NotFound();
+            }
+            foundPet.HungerLevel = subtractHappiness.HungerLevel - 5;
+            foundPet.HappinessLevel = subtractHappiness.HappinessLevel - 3;
+
+            return Ok(foundPet);
         }
 
         // DELETE: api/Pets/5
@@ -144,34 +138,17 @@ namespace Tomagotchi.Controllers
         // to grab the id from the URL. It is then made available to us as the `id` argument to the method.
         //
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePet(int id)
+
+        public ActionResult<Pet> Delete(int id)
         {
-            // Find this pet by looking for the specific id
-            var pet = await _context.Pets.FindAsync(id);
-            if (pet == null)
+            var foundGame = _context.Pets.FirstOrDefault(pet => pet.Id == id);
+            if (foundGame == null)
             {
-                // There wasn't a pet with that id so return a `404` not found
                 return NotFound();
             }
-
-            // Tell the database we want to remove this record
-            _context.Pets.Remove(pet);
-
-            // Tell the database to perform the deletion
-            await _context.SaveChangesAsync();
-
-            // return NoContent to indicate the update was done. Alternatively you can use the
-            // following to send back a copy of the deleted data.
-            //
-            // return Ok(pet)
-            //
-            return NoContent();
-        }
-
-        // Private helper method that looks up an existing pet by the supplied id
-        private bool PetExists(int id)
-        {
-            return _context.Pets.Any(pet => pet.Id == id);
+            _context.Pets.Remove(foundGame);
+            _context.SaveChanges();
+            return Ok(foundGame);
         }
     }
 }
